@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐍 스네이크 게임</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+        }
+
+        canvas {
+            background-color: #34495e;
+            border: 2px solid #ecf0f1;
+        }
+
+        #gameOverMessage, #restartButton {
+            margin-top: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        #restartButton {
+            padding: 10px 20px;
+            border: none;
+            background-color: #e74c3c;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>스네이크 게임</h1>
+    <canvas id="gameCanvas"></canvas>
+    <div id="score">점수: 0</div>
+    <div id="gameOverMessage" class="hidden">게임 오버!</div>
+    <div id="restartButton" class="hidden">다시 시작</div>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const restartButton = document.getElementById('restartButton');
+
+        const TILE_SIZE = 20;
+        const CANVAS_SIZE = 600;
+        const TELEPORT_SIZE = 3;
+
+        let snake, food, score, direction, gameInterval;
+        let isGameOver = false;
+        let gameSpeed = 150;
+        
+        // 텔레포트 지점 설정 (양옆 모서리 중앙에 크게)
+        const boardTiles = CANVAS_SIZE / TILE_SIZE;
+        const TELEPORT_IN = { 
+            x: 0, 
+            y: Math.floor(boardTiles / 2) - 1
+        };
+        const TELEPORT_OUT = { 
+            x: boardTiles - TELEPORT_SIZE, 
+            y: Math.floor(boardTiles / 2) - 1
+        };
+
+        canvas.width = CANVAS_SIZE;
+        canvas.height = CANVAS_SIZE;
+
+        function startGame() {
+            snake = [];
+            for (let i = 0; i < 5; i++) {
+                snake.push({ x: 10 - i, y: 10 });
+            }
+
+            food = generateFood();
+            score = 0;
+            direction = 'right';
+            isGameOver = false;
+            gameSpeed = 150;
+            
+            scoreDisplay.innerText = '점수: ' + score;
+            gameOverMessage.classList.add('hidden');
+            restartButton.classList.add('hidden');
+
+            clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+        }
+
+        function generateFood() {
+            const x = Math.floor(Math.random() * (CANVAS_SIZE / TILE_SIZE));
+            const y = Math.floor(Math.random() * (CANVAS_SIZE / TILE_SIZE));
+            return { x, y };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // 텔레포트 지점 그리기
+            ctx.fillStyle = '#f1c40f'; // 노란색
+            ctx.fillRect(TELEPORT_IN.x * TILE_SIZE, TELEPORT_IN.y * TILE_SIZE, TILE_SIZE * TELEPORT_SIZE, TILE_SIZE * TELEPORT_SIZE);
+            ctx.fillRect(TELEPORT_OUT.x * TILE_SIZE, TELEPORT_OUT.y * TILE_SIZE, TILE_SIZE * TELEPORT_SIZE, TILE_SIZE * TELEPORT_SIZE);
+
+            ctx.fillStyle = '#2ecc71';
+            snake.forEach(segment => {
+                ctx.fillRect(segment.x * TILE_SIZE, segment.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            });
+
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(food.x * TILE_SIZE, food.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+
+        function gameLoop() {
+            if (isGameOver) {
+                return;
+            }
+
+            const head = { x: snake[0].x, y: snake[0].y };
+
+            switch (direction) {
+                case 'up':
+                    head.y--;
+                    break;
+                case 'down':
+                    head.y++;
+                    break;
+                case 'left':
+                    head.x--;
+                    break;
+                case 'right':
+                    head.x++;
+                    break;
+            }
+
+            // 벽 충돌 로직
+            if (head.x < 0 || head.x >= CANVAS_SIZE / TILE_SIZE || head.y < 0 || head.y >= CANVAS_SIZE / TILE_SIZE) {
+                endGame();
+                return;
+            }
+
+            // 텔레포트 로직
+            if (head.x >= TELEPORT_IN.x && head.x < TELEPORT_IN.x + TELEPORT_SIZE && 
+                head.y >= TELEPORT_IN.y && head.y < TELEPORT_IN.y + TELEPORT_SIZE) {
+                head.x = TELEPORT_OUT.x + Math.floor(TELEPORT_SIZE / 2);
+                head.y = TELEPORT_OUT.y + Math.floor(TELEPORT_SIZE / 2);
+            } else if (head.x >= TELEPORT_OUT.x && head.x < TELEPORT_OUT.x + TELEPORT_SIZE && 
+                       head.y >= TELEPORT_OUT.y && head.y < TELEPORT_OUT.y + TELEPORT_SIZE) {
+                head.x = TELEPORT_IN.x + Math.floor(TELEPORT_SIZE / 2);
+                head.y = TELEPORT_IN.y + Math.floor(TELEPORT_SIZE / 2);
+            }
+
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    endGame();
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                scoreDisplay.innerText = '점수: ' + score;
+                food = generateFood();
+
+                gameSpeed -= 1;
+                if (gameSpeed < 50) {
+                    gameSpeed = 50;
+                }
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, gameSpeed);
+            } else {
+                snake.pop();
+            }
+
+            draw();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            gameOverMessage.classList.remove('hidden');
+            restartButton.classList.remove('hidden');
+        }
+
+        document.addEventListener('keydown', e => {
+            const key = e.key.toLowerCase();
+
+            if (isGameOver && key === ' ') {
+                startGame();
+                return;
+            }
+            
+            switch (key) {
+                case 'arrowup':
+                case 'w':
+                    if (direction !== 'down') direction = 'up';
+                    break;
+                case 'arrowdown':
+                case 's':
+                    if (direction !== 'up') direction = 'down';
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    if (direction !== 'right') direction = 'left';
+                    break;
+                case 'arrowright':
+                case 'd':
+                    if (direction !== 'left') direction = 'right';
+                    break;
+            }
+        });
+
+        restartButton.addEventListener('click', startGame);
+
+        startGame();
+    </script>
+</body>
+</html>
